@@ -207,7 +207,14 @@ if uploaded_file is not None:
         st.info(f"💡 **Recommendation:** {recommendation}")
 
         #Generate PDF report
-        pdf_file = generate_report(predicted_class,confidence)
+        pdf_file = generate_report(
+            predicted_class,
+            confidence,
+            severity,
+            risk,
+            recommendation,
+            crack_percentage
+        )
 
         with open(pdf_file, "rb")as file:
             st.download_button(
