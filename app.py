@@ -5,6 +5,7 @@ import tensorflow as tf
 import pandas as pd
 import time
 import csv 
+import cv2
 from datetime import datetime
 
 from pdf_report import generate_report
@@ -17,6 +18,36 @@ model = tf.keras.models.load_model("model/defect_model.keras")
 # Class names (same order used during training)
 class_names = ["crack", "no_defect"]
 
+def analyze_severity(image):
+    # Convert PIL image to OpenCV format
+    img = np.array(image)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    # Detect dark crack-like regions
+    _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+
+    # Calculate percentage of dark pixels
+    crack_pixels = np.sum(thresh == 255)
+    total_pixels = thresh.shape[0] * thresh.shape[1]
+
+    crack_percentage = (crack_pixels / total_pixels) * 100
+
+    if crack_percentage < 5:
+        severity = "🟢 Normal"
+        risk = "Low"
+        recommendation = "Monitor the defect. No immediate repair required."
+
+    elif crack_percentage < 15:
+        severity = "🟡 Intermediate"
+        risk = "Medium"
+        recommendation = "Maintenance is recommended. Inspect periodically."
+
+    else:
+        severity = "🔴 Severe"
+        risk = "High"
+        recommendation = "Immediate structural inspection and repair recommended."
+
+    return severity, risk, recommendation, crack_percentage
 
 # Streamlit Page Settings
 
@@ -126,6 +157,13 @@ if uploaded_file is not None:
 
             confidence = np.max(prediction)
 
+            if predicted_class == "crack":
+                severity, risk, recommendation, crack_percentage = analyze_severity(image)
+            else:
+                severity = "🟢 Normal"
+                risk = "Low"
+                recommendation = "No visible structural defect detected."
+                crack_percentage = 0
             # Save Prediction history
             current_time = datetime.now().strftime("%d-%m-%Y %H:%M")
 
@@ -157,6 +195,16 @@ if uploaded_file is not None:
             value=f"{confidence:.2%}"
         )
         st.progress(float(confidence))
+        # Severity Information
+        st.subheader("🔎 Defect Assessment")
+
+        st.write(f"**Severity:** {severity}")
+
+        st.write(f"**Risk Level:** {risk}")
+
+        st.write(f"**Estimated Crack Area:** {crack_percentage:.2f}%")
+
+        st.info(f"💡 **Recommendation:** {recommendation}")
 
         #Generate PDF report
         pdf_file = generate_report(predicted_class,confidence)
